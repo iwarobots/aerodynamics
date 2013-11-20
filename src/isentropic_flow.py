@@ -8,34 +8,25 @@ import math
 from constants import GAMMA
 
 
-class IsentropicFlow(object):
-    
-    def __init__(self, m1):
-        self.m1 = m1
-        self._const_a = None
-    
-    @property
-    def _a(self):
-        if self._const_a is None:
-            self._const_a = 1 + (GAMMA-1) / 2 * self.m1 ** 2
-        return self._const_a
-    
-    @property
-    def area(self):
-        x = (GAMMA+1)/(GAMMA-1)
-        y = 1 / (self.m1**2) * (2/(GAMMA+1)*self._a) ** x
-        return math.sqrt(y)
-    
-    @property
-    def pressure(self):
-        x = -(GAMMA/(GAMMA-1))
-        return self._a ** x
-    
-    @property
-    def temperature(self):
-        return self._a ** (-1)
-    
-    @property
-    def density(self):
-        x = -(1/(GAMMA-1))
-        return self._a ** x
+def _var1(m):
+    return 1 + (GAMMA-1) / 2 * m ** 2
+
+
+def p(m):
+    var1 = -(GAMMA/(GAMMA-1))
+    return _var1(m) ** var1
+
+
+def rho(m):
+    var1 = -(1/(GAMMA-1))
+    return _var1(m) ** var1
+
+
+def t(m):
+    return _var1(m) ** (-1)
+
+
+def a(m):
+    var1 = (GAMMA+1) / (GAMMA-1)
+    var2 = 1 / (m**2) * (2/(GAMMA+1)*_var1(m)) ** var1
+    return math.sqrt(var2)
