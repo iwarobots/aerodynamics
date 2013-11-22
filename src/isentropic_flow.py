@@ -3,52 +3,53 @@
 
 from __future__ import absolute_import, division
 
-import math
+from math import sqrt
 
 from scipy.optimize import brentq
 
-from constants import GAMMA, MIN_MACH, MAX_MACH
+from common import func1
+from constants import GAMMA
 
 
-def _var1(m):
-    return 1 + (GAMMA-1) / 2 * m ** 2
+# Range used in scipy.optimize.brentq
+MIN_MACH, MAX_MACH = 1E-5, 100.
 
 
 def m2p(m):
-    var1 = -(GAMMA/(GAMMA-1))
-    return _var1(m) ** var1
+    x = -(GAMMA/(GAMMA-1))
+    return func1(m) ** x
 
 
 def m2rho(m):
-    var1 = -(1/(GAMMA-1))
-    return _var1(m) ** var1
+    x = -(1/(GAMMA-1))
+    return func1(m) ** x
 
 
 def m2t(m):
-    return _var1(m) ** (-1)
+    return func1(m) ** (-1)
 
 
 def m2a(m):
-    var1 = (GAMMA+1) / (GAMMA-1)
-    var2 = 1 / (m**2) * (2/(GAMMA+1)*_var1(m)) ** var1
-    return math.sqrt(var2)
+    x = (GAMMA+1) / (GAMMA-1)
+    y = 1 / (m**2) * (2/(GAMMA+1)*func1(m)) ** x
+    return sqrt(y)
 
 
-def p2m(r):
-    return brentq(lambda x: m2p(x)-r, MIN_MACH, MAX_MACH)
+def p2m(p):
+    return brentq(lambda x: m2p(x)-p, MIN_MACH, MAX_MACH)
 
 
-def rho2m(r):
-    return brentq(lambda x: m2rho(x)-r, MIN_MACH, MAX_MACH)
+def rho2m(rho):
+    return brentq(lambda x: m2rho(x)-rho, MIN_MACH, MAX_MACH)
 
 
-def t2m(r):
-    return brentq(lambda x: m2t(x)-r, MIN_MACH, MAX_MACH)
+def t2m(t):
+    return brentq(lambda x: m2t(x)-t, MIN_MACH, MAX_MACH)
 
 
-def a2m(r, supersonic=1):
+def a2m(a, supersonic=1):
     if supersonic:
-        result = brentq(lambda x: m2a(x)-r, 1, MAX_MACH)
+        result = brentq(lambda x: m2a(x)-a, 1, MAX_MACH)
     else:
-        result = brentq(lambda x: m2a(x)-r, MIN_MACH, 1)
+        result = brentq(lambda x: m2a(x)-a, MIN_MACH, 1)
     return result

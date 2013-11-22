@@ -1,23 +1,25 @@
 #!/usr/bin/env python
 
 
+# TODO: Check spelling of this module.
+
+
+# CAUTION: Please use SI in the project.
+
+
 from __future__ import absolute_import, division
 
 import numpy as np
-from scipy.optimize import brentq
 
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
-import isentropic_flow as flow
+import isentropic_flow as iflow
 import normal_shock_wave as nsw
 from constants import EPSILON
 
 
-# CAUTION: Please use SI in the project.
-
-    
 class WindTunnelNotBuild(Exception):
     pass
 
@@ -25,180 +27,151 @@ class WindTunnelNotBuild(Exception):
 class WindTunnel(object):
     
     def __init__(self,
-                  design_mach,
-                  test_section_area,
-                  
-                  # NOTE: This is not reservoir pressure.
-                  inlet_pressure,
-                  
-                  # NOTE: This is not reservoir temperature.
-                  inlet_temperature,
-                  convergent_length,
-                  divergent_length,
-                  z_len,
-                  back_pressure,
-                  inlet_mach=0.1):
-        self.__design_mach = design_mach
-        self.__test_section_area = test_section_area
-        self.__inlet_pressure = inlet_pressure
-        self.__inlet_temperature = inlet_temperature
-        self.__convergent_length = convergent_length
-        self.__divergent_length = divergent_length
-        self.__z_len = z_len
-        self.__inlet_mach = inlet_mach
-        
-        self.__back_pressure = back_pressure
-    
+                 design_mach,
+                 test_section_area,
+                 in_pressure,   # NOTE: This is not reservoir pressure.
+                 in_temperature,    # NOTE: This is not reservoir temperature.
+                 in_area,
+                 con_len,
+                 div_len,
+                 z_len,
+                 back_pressure,
+                 in_mach=0.1):
+        self._design_mach = design_mach
+        self._test_section_area = test_section_area
+        self._in_pressure = in_pressure
+        self._in_temperature = in_temperature
+        self._in_area = in_area
+        self._con_len = con_len
+        self._div_len = div_len
+        self._z_len = z_len
+        self._in_mach = in_mach
+        self._back_pressure = back_pressure
+
+    ##########################################################################
+    # Properties decided by designer.
     @property
     def design_mach(self):
-        return self.__design_mach
+        return self._design_mach
     
     @property
     def md(self):
-        return self.__design_mach
+        return self._design_mach
     
     @property
     def test_section_area(self):
-        return self.__test_section_area
+        return self._test_section_area
     
     @property
     def ats(self):
-        return self.__test_section_area
+        return self._test_section_area
     
     @property
-    def inlet_pressure(self):
-        return self.__inlet_pressure
+    def con_len(self):
+        return self._con_len
     
     @property
-    def in_p(self):
-        return self.__inlet_pressure
-    
+    def div_len(self):
+        return self._div_len
+
     @property
-    def convergent_length(self):
-        return self.__convergent_length
-    
-    @property
-    def cl(self):
-        return self.__convergent_length
-    
-    @property
-    def divergent_length(self):
-        return self.__divergent_length
-    
-    @property
-    def dl(self):
-        return self.__divergent_length
-    
+    def t_len(self):
+        return self.con_len + self.div_len
+
     @property
     def z_len(self):
-        return self.__z_len
-    
-    @property
-    def inlet_mach(self):
-        return self.__inlet_mach
-    
-    @property
-    def mach_in(self):
-        return self.__inlet_mach
-    
-    @property
-    def back_pressure(self):
-        return self.__back_pressure
-    
-    @property
-    def pb(self):
-        return self.__back_pressure
-        
+        return self._z_len
+
     @property
     def atsat(self):
-        return flow.m2a(self.md)
-    
-    @property
-    def ainat(self):
-        return flow.m2a(self.mach_in)
-    
+        return iflow.m2a(self.md)
+
     @property
     def throat_area(self):
         return self.ats / self.atsat
-    
-    @property
-    def inlet_area(self):
-        return self.throat_area * self.ainat
-    
-    @property
-    def ain(self):
-        return self.inlet_area
-    
+
     @property
     def at(self):
         return self.throat_area
     
     @property
-    def t_len(self):
-        return self.cl + self.dl
+    def in_area(self):
+        return self._in_area
     
+    @property
+    def ain(self):
+        return self._in_area
+    
+    @property
+    def ainat(self):
+        return self.ain / self.at
+    
+    ##########################################################################
+    # Properties can be adjusted.
+    @property
+    def back_pressure(self):
+        return self._back_pressure
+    
+    @property
+    def pb(self):
+        return self._back_pressure
+        
+    @property
+    def inlet_pressure(self):
+        return self._in_pressure
+
+    @property
+    def pin(self):
+        return self._in_pressure
+
+    @property
+    def in_mach(self):
+        return self._in_mach
+    
+    ##########################################################################
+    # Methods.
+    def get_area(self, x):
+        if x <= self.con_len:
+            area = (self.ain*self.con_len-self.ain*x+self.at*x) / self.con_len
+        elif self.con_len < x <= self.con_len + self.div_len:
+            area = (self.ats-self.at)*(x-self.con_len)/self.div_len + self.at
+        return 2 * area
+    
+    def get_y(self, x):
+        return self.get_area(x) / self.z_len / 2
+
     @property
     def max_y(self):
         max_y = max(self.get_y(0), self.get_y(self.t_len))
         return max_y
     
-    def get_area(self, x):
-        if x <= self.cl:
-            area = (self.ain*self.cl-self.ain*x+self.at*x) / self.cl
-        elif self.cl < x <= self.cl + self.dl:
-            area = (self.ats-self.at)*(x-self.cl)/self.dl + self.at
-        return 2 * area
-    
-    def get_y(self, x):
-        return self.get_area(x) / self.z_len / 2
-    
-    def set_back_pressure(self, m2p):
-        self.__back_pressure = m2p
+    def set_back_pressure(self, p):
+        self._back_pressure = p
     
     def get_wall_shape(self):
         y_in = self.get_y(0)
-        y_t = self.get_y(self.cl)
+        y_t = self.get_y(self.con_len)
         y_ts = self.get_y(self.t_len)
         return np.array([
-            (0, y_in),
-            (self.cl, y_t),
-            (self.t_len, y_ts),
-            (self.t_len, -y_ts),
-            (self.cl, -y_t),
-            (0, -y_in),
+            [0, y_in],
+            [self.con_len, y_t],
+            [self.t_len, y_ts],
+            [self.t_len, -y_ts],
+            [self.con_len, -y_t],
+            [0, -y_in],
         ])
-    
-    def get_p(self, x):
-        case = self.decide_case()
-        if case == 1 or case == 2:
-            p = flow.m2p(flow.a2m(self.get_area(x), 0))
-        return p
-    
-    def get_astar_if_subsonic(self):
-        return self.ain / flow.m2a(self.inlet_mach)
-    
-    def get_m(self, x):
-        case = self.decide_case()
-        
-        if case == 1 or case == 2:
-            aastar = self.get_area(x) / self.get_astar_if_subsonic()
-            print aastar
-            m = flow.a2m(aastar)
-        
-        return m
-            
     
     def decide_case(self):
         # Mach number for the limiting case.
-        ml = flow.a2m(self.atsat, 0)
+        ml = iflow.a2m(self.atsat, 0)
         # Mach number for the design case.
         md = self.md
-        
-        pl = flow.m2p(ml)
-        pd = flow.m2p(md)
-        pns = flow.m2p(md) * nsw.m12p(md)
-        
-        ratio = self.pb / self.in_p
+
+        pl = iflow.m2p(ml)
+        pd = iflow.m2p(md)
+        pns = iflow.m2p(md) * nsw.m2p(md)
+
+        ratio = self.pb / self.pin
         if ratio > pl:
             case = 1
         elif abs(ratio-pl) < EPSILON:
@@ -214,7 +187,22 @@ class WindTunnel(object):
         elif ratio < pd:
             case = 7
         return case
+
+    def get_astar_if_subsonic(self):
+        pass
     
+    def get_m(self, x):
+        case = self.decide_case()
+        
+        if case == 1 or case == 2:
+            aastar = self.get_area(x) / self.get_astar_if_subsonic()
+            m = iflow.a2m(aastar)
+        
+        return m
+
+    def get_p(self, x):
+        pass
+
 
 class Report(object):
     
@@ -251,8 +239,8 @@ class Report(object):
                   -max_y-v_margin, max_y+v_margin])
         return fig
     
-    def save_shape_plot(self):
-        self.get_figure().savefig('1.png')
+    def save_shape_plot(self, filename):
+        self.get_figure().savefig(filename)
     
     def get_a(self):
         num = 1000
@@ -266,8 +254,8 @@ class Report(object):
         sub.plot(xs, ys, 'b')
         return fig
     
-    def save_a_plot(self):
-        self.get_a().savefig('2.png')
+    def save_a_plot(self, filename):
+        self.get_a().savefig(filename)
     
     def get_p(self):
         num = 1000
@@ -281,12 +269,16 @@ class Report(object):
         sub.plot(xs, ys, 'b')
         return fig
     
-    def save_p_plot(self):
-        self.get_p().savefig('3.png')
+    def save_p_plot(self, filename):
+        self.get_p().savefig(filename)
+
+    def generate(self):
+        pass
     
 
-t = WindTunnel(2.4, 2.4, 10e6, 300, 1, 10, 1, .99999*10e6)
-print t.get_m(0)
+t = WindTunnel(2.4, 2.4, 10e6, 300, 5, 5, 1, .98*10e6)
+t.get_m(0)
+print t.throat_area
 # r = Report()
 # r.build(t)
 # r.save_p_plot()
