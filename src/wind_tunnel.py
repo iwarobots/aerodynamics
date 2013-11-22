@@ -333,10 +333,11 @@ class Report(object):
 
     def generate(self):
         pass
-    
 
-t = WindTunnel(2.4, 1, 10e6, 300, 10, 5, 5, 1, 0.5*10E6)
-print t.decide_case()
-r = Report()
-r.build(t)
-r.save_plot('1.png', 'm')
+
+if __name__ == '__main__':
+    t = WindTunnel(2.4, 1, 10e6, 300, 10, 5, 5, 1, 0.5*10E6)
+    print t.decide_case()
+    r = Report()
+    r.build(t)
+    r.save_plot('1.png', 'm')
