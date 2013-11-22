@@ -321,8 +321,7 @@ class Report(object):
     def __init__(self):
         pass
 
-    def get_shape(self):
-        points = self.wt.get_wall_shape()
+    def shape(self, points):
         steps = len(points)
         points = np.vstack([points, points[0]])
         fig = plt.figure()
@@ -333,60 +332,66 @@ class Report(object):
             y = [points[i, 1], points[i+1, 1]]
             sub.plot(x, y, 'b')
         
-        t_len = self.wt.t_len
-        max_y = self.wt.ymax
+        #t_len = self.wt.t_len
+        #max_y = self.wt.ymax
         
-        h_margin = t_len * 0.1 / 2
-        v_margin = max_y * 0.1
-        plt.axis([-h_margin, t_len+h_margin,
-                  -max_y-v_margin, max_y+v_margin])
+        #h_margin = t_len * 0.1 / 2
+        #v_margin = max_y * 0.1
+        #plt.axis([-h_margin, t_len+h_margin,
+        #          -max_y-v_margin, max_y+v_margin])
         return fig
 
-    def get_fig(self, type_, steps=1000):
-        xs = np.linspace(0, self.wt.t_len, steps)
-        ys = np.zeros(steps)
-        for i in xrange(steps):
-            if type_ == 'a':
-                ys[i] = self.wt.x2a(xs[i])
-            elif type_ == 'm':
-                ys[i] = self.wt.x2m(xs[i])
-            elif type_ == 'p':
-                ys[i] = self.wt.x2p(xs[i])
-            elif type_ == 'rho':
-                ys[i] = self.wt.x2rho(xs[i])
-            elif type_ == 't':
-                ys[i] = self.wt.x2t(xs[i])
-
-        fig = plt.figure()
-        sub = fig.add_subplot(111)
-        sub.plot(xs, ys, 'b')
-        return fig
-
-    @property
-    def all_plot_type(self):
-        return ['a', 'm', 'p', 'rho', 't']
+    def graph(self, x, profile):
+        graph = plt.figure()
+        sub = graph.add_subplot(111)
+        sub.plot(x, profile, 'b')
+        return graph
 
 
 class WindTunnelReportCreator(Controller):
 
-    def __init__(self, wind_tunnel, report):
-        self._wind_tunnel = wind_tunnel
-        self._report = report
+    def __init__(self, model, view):
+        Controller.__init__(self, model, view)
 
-    def save_plot(self, filename, plot_type):
+    @property
+    def plot_types(self):
+        return ['s', 'a', 'm', 'p', 'rho', 't']
+
+    def save_plot(self, filename, plot_type, steps=1000):
         if plot_type == 's':
-            fig = self.get_shape()
-        elif plot_type in ('a', 'm', 'p', 'rho', 't'):
-            fig = self.get_fig(plot_type)
-        fig.savefig(filename)
+            points = self._model.get_wall_shape()
+            fig = self._view.shape(points)
+            fig.savefig(filename)
+        else:
+            xs = np.linspace(0, self._model.t_len, steps)
+            profile = np.zeros(steps)
+
+            if plot_type == 'a':
+                for i in xrange(steps):
+                    profile[i] = self._model.x2a(xs[i])
+            elif plot_type == 'm':
+                for i in xrange(steps):
+                    profile[i] = self._model.x2m(xs[i])
+            elif plot_type == 'p':
+                for i in xrange(steps):
+                    profile[i] = self._model.x2p(xs[i])
+            elif plot_type == 'rho':
+                for i in xrange(steps):
+                    profile[i] = self._model.x2rho(xs[i])
+            elif plot_type == 't':
+                for i in xrange(steps):
+                    profile[i] = self._model.x2t(xs[i])
+
+            graph = self._view.graph(xs, profile)
+            graph.savefig(filename)
 
     def generate(self):
-        for t in self.all_plot_type:
+        for t in self.plot_types:
             self.save_plot('%s.png' % t, t)
 
 
 if __name__ == '__main__':
     t = WindTunnel(2.4, 1, 10e6, 300, 10, 5, 20, 1, 0.5*10E6)
     r = Report()
-    r.build(t)
-    r.generate()
+    c = WindTunnelReportCreator(t, r)
+    c.generate()
