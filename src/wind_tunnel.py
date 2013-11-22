@@ -259,10 +259,14 @@ class WindTunnel(Model):
                 m = iflow.a2m(self.x2a(x)/self.at, 1)
         return m
 
-        
-    def get_p(self, x):
-        m = self.x2m(x)
-        return iflow.m2p(m)
+    def x2p(self, x):
+        return iflow.m2p(self.x2m(x))
+
+    def x2rho(self, x):
+        return iflow.m2rho(self.x2m(x))
+
+    def x2t(self, x):
+        return iflow.m2t(self.x2m(x))
 
 
 class Report(object):
@@ -279,7 +283,11 @@ class Report(object):
             raise WindTunnelNotBuild()
         return self.__wind_tunnel
 
-    def save_plot(self, filename, fig):
+    def save_plot(self, filename, type_):
+        if type_ == 's':
+            fig = self.get_shape()
+        elif type_ in ('a', 'm', 'p', 'rho', 't'):
+            fig = self.get_fig(type_)
         fig.savefig(filename)
 
     def get_shape(self):
@@ -302,62 +310,33 @@ class Report(object):
         plt.axis([-h_margin, t_len+h_margin,
                   -max_y-v_margin, max_y+v_margin])
         return fig
-    
-    def save_shape_plot(self, filename):
-        self.save_plot(filename, self.get_shape())
-    
-    def get_a(self):
-        num = 1000
-        xs = np.linspace(0, self.wt.t_len, num)
-        ys = np.zeros(num)
-        for i in xrange(num):
-            ys[i] = self.wt.x2a(xs[i])
-        
-        fig = plt.figure()
-        sub = fig.add_subplot(111)
-        sub.plot(xs, ys, 'b')
-        return fig
-    
-    def save_a_plot(self, filename):
-        self.save_plot(filename, self.get_a())
-    
-    def get_p(self):
-        num = 1000
-        xs = np.linspace(0, self.wt.t_len, num)
-        ys = np.zeros(num)
-        for i in xrange(num):
-            ys[i] = self.wt.get_p(xs[i])
-        
-        fig = plt.figure()
-        sub = fig.add_subplot(111)
-        sub.plot(xs, ys, 'b')
-        return fig
-    
-    def save_p_plot(self, filename):
-        self.save_plot(filename, self.get_p())
 
-    def get_m(self):
-        num = 1000
-        xs = np.linspace(0, self.wt.t_len, num)
-        ys = np.zeros(num)
-        for i in xrange(num):
-            ys[i] = self.wt.x2m(xs[i])
+    def get_fig(self, type_, steps=1000):
+        xs = np.linspace(0, self.wt.t_len, steps)
+        ys = np.zeros(steps)
+        for i in xrange(steps):
+            if type_ == 'a':
+                ys[i] = self.wt.x2a(xs[i])
+            elif type_ == 'm':
+                ys[i] = self.wt.x2m(xs[i])
+            elif type_ == 'p':
+                ys[i] = self.wt.x2p(xs[i])
+            elif type_ == 'rho':
+                ys[i] = self.wt.x2rho(xs[i])
+            elif type_ == 't':
+                ys[i] = self.wt.x2t(xs[i])
 
         fig = plt.figure()
         sub = fig.add_subplot(111)
         sub.plot(xs, ys, 'b')
         return fig
-
-    def save_m_plot(self, filename):
-        self.save_plot(filename, self.get_m())
-
 
     def generate(self):
         pass
     
 
-t = WindTunnel(5, 1, 10e6, 300, 10, 5, 50, 1, 0.9999999999*10E6)
+t = WindTunnel(2.4, 1, 10e6, 300, 10, 5, 5, 1, 0.5*10E6)
 print t.decide_case()
 r = Report()
 r.build(t)
-r.save_p_plot('1.png')
+r.save_plot('1.png', 'm')
