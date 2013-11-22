@@ -201,7 +201,7 @@ class WindTunnel(object):
         return m
 
     def get_p(self, x):
-        pass
+        print 1
 
 
 class Report(object):
