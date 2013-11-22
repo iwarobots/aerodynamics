@@ -13,7 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 from matplotlib import pyplot as plt
 
-import isentropic_flow as iflow
+import isentropic_flow as ie_flow
 import normal_shock_wave as nsw
 from constants import EPSILON
 
@@ -101,7 +101,7 @@ class WindTunnel(Model):
 
     @property
     def atsat(self):
-        return iflow.m2a(self.md)
+        return ie_flow.m2a(self.md)
 
     @property
     def throat_area(self):
@@ -187,13 +187,13 @@ class WindTunnel(Model):
     
     def decide_case(self):
         # Mach number for the limiting case.
-        ml = iflow.a2m(self.atsat, 0)
+        ml = ie_flow.a2m(self.atsat, 0)
         # Mach number for the design case.
         md = self.md
 
-        pl = iflow.m2p(ml)
-        pd = iflow.m2p(md)
-        pns = iflow.m2p(md) * nsw.m2p(md)
+        pl = ie_flow.m2p(ml)
+        pd = ie_flow.m2p(md)
+        pns = ie_flow.m2p(md) * nsw.m2p(md)
 
         ratio = self.pb / self.pin
         if ratio > pl:
@@ -216,9 +216,9 @@ class WindTunnel(Model):
         case = self.decide_case()
         if case == 1 or case == 2:
             astar = self.get_astar_if_subsonic()
-            in_mach = iflow.a2m(self.ain/astar, supersonic=0)
+            in_mach = ie_flow.a2m(self.ain/astar, supersonic=0)
         elif case == 3:
-            in_mach = iflow.a2m(self.ainat, supersonic=1)
+            in_mach = ie_flow.a2m(self.ainat, supersonic=1)
         return in_mach
 
     def get_astar_if_subsonic(self):
@@ -226,47 +226,47 @@ class WindTunnel(Model):
         if not case == 1 or case == 2:
             raise InvalidCall
 
-        return self.ats / iflow.m2a(iflow.p2m(self.pb/self.pin))
+        return self.ats / ie_flow.m2a(ie_flow.p2m(self.pb/self.pin))
     
     def x2m(self, x):
         case = self.decide_case()
         
         if case in (1, 2):
             aastar = self.x2a(x) / self.get_astar_if_subsonic()
-            m = iflow.a2m(aastar, supersonic=0)
+            m = ie_flow.a2m(aastar, supersonic=0)
 
         elif case in (3, 4):
             ap = self.atsat*self.pb/self.pin
-            mts = iflow.ap2m(ap)
-            p02 = self.pb / iflow.m2p(mts)
+            mts = ie_flow.ap2m(ap)
+            p02 = self.pb / ie_flow.m2p(mts)
             p02pin = p02 / self.pin
             a2star = (ap/(self.pb/p02)/self.ats) ** -1
             m1 = nsw.p02m(p02pin)
-            area = iflow.m2a(m1) * self.at
+            area = ie_flow.m2a(m1) * self.at
             xns = self.a2x(area, 0)
 
             if 0 <= x <= self.con_len:
-                m = iflow.a2m(self.x2a(x)/self.at, supersonic=0)
+                m = ie_flow.a2m(self.x2a(x)/self.at, supersonic=0)
             elif self.con_len <= x <= xns:
-                m = iflow.a2m(self.x2a(x)/self.at, supersonic=1)
+                m = ie_flow.a2m(self.x2a(x)/self.at, supersonic=1)
             elif xns < x <= self.t_len:
-                m = iflow.a2m(self.x2a(x)/a2star, supersonic=0)
+                m = ie_flow.a2m(self.x2a(x)/a2star, supersonic=0)
 
         elif case in (5, 6, 7):
             if 0 <= x <= self.con_len:
-                m = iflow.a2m(self.x2a(x)/self.at, 0)
+                m = ie_flow.a2m(self.x2a(x)/self.at, 0)
             elif self.con_len <= x <= self.t_len:
-                m = iflow.a2m(self.x2a(x)/self.at, 1)
+                m = ie_flow.a2m(self.x2a(x)/self.at, 1)
         return m
 
     def x2p(self, x):
-        return iflow.m2p(self.x2m(x))
+        return ie_flow.m2p(self.x2m(x))
 
     def x2rho(self, x):
-        return iflow.m2rho(self.x2m(x))
+        return ie_flow.m2rho(self.x2m(x))
 
     def x2t(self, x):
-        return iflow.m2t(self.x2m(x))
+        return ie_flow.m2t(self.x2m(x))
 
 
 class Report(object):
