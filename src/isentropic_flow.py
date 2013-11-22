@@ -7,12 +7,8 @@ from math import sqrt
 
 from scipy.optimize import brentq
 
-from common import func1
+from common import func1, MIN_MACH, MAX_MACH
 from constants import GAMMA
-
-
-# Range used in scipy.optimize.brentq
-MIN_MACH, MAX_MACH = 1E-5, 100.
 
 
 def m2p(m):
@@ -48,8 +44,12 @@ def t2m(t):
 
 
 def a2m(a, supersonic=1):
-    if supersonic:
-        result = brentq(lambda x: m2a(x)-a, 1, MAX_MACH)
-    else:
-        result = brentq(lambda x: m2a(x)-a, MIN_MACH, 1)
-    return result
+    if supersonic == 1:
+        m = brentq(lambda x: m2a(x)-a, 1, MAX_MACH)
+    elif supersonic == 0:
+        m = brentq(lambda x: m2a(x)-a, MIN_MACH, 1)
+    return m
+
+
+def ap2m(ap):
+    return brentq(lambda x: m2a(x)*m2p(x)-ap, MIN_MACH, MAX_MACH)

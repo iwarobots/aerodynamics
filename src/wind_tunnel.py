@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 
 
-# TODO: Check spelling of this module.
-
-
 # CAUTION: Please use SI in the project.
 
 
 from __future__ import absolute_import, division
 
 import numpy as np
+from scipy.optimize import brentq
 
 import matplotlib
 matplotlib.use('Agg')
@@ -24,7 +22,26 @@ class WindTunnelNotBuild(Exception):
     pass
 
 
-class WindTunnel(object):
+class InvalidCall(Exception):
+    pass
+
+
+class Model(object):
+    pass
+
+
+class View(object):
+    pass
+
+
+class Controller(object):
+
+    def __init__(self, model, view):
+        self._model = model
+        self._view = view
+
+
+class WindTunnel(Model):
     
     def __init__(self,
                  design_mach,
@@ -35,8 +52,8 @@ class WindTunnel(object):
                  con_len,
                  div_len,
                  z_len,
-                 back_pressure,
-                 in_mach=0.1):
+                 back_pressure):
+        Model.__init__(self)
         self._design_mach = design_mach
         self._test_section_area = test_section_area
         self._in_pressure = in_pressure
@@ -45,11 +62,11 @@ class WindTunnel(object):
         self._con_len = con_len
         self._div_len = div_len
         self._z_len = z_len
-        self._in_mach = in_mach
         self._back_pressure = back_pressure
 
     ##########################################################################
     # Properties decided by designer.
+
     @property
     def design_mach(self):
         return self._design_mach
@@ -107,7 +124,8 @@ class WindTunnel(object):
         return self.ain / self.at
     
     ##########################################################################
-    # Properties can be adjusted.
+    # Properties can be adjusted after the wind tunnel is built.
+
     @property
     def back_pressure(self):
         return self._back_pressure
@@ -124,41 +142,47 @@ class WindTunnel(object):
     def pin(self):
         return self._in_pressure
 
-    @property
-    def in_mach(self):
-        return self._in_mach
-    
     ##########################################################################
     # Methods.
-    def get_area(self, x):
+
+    def change_back_pressure(self, p):
+        self._back_pressure = p
+
+    def x2a(self, x):
         if x <= self.con_len:
             area = (self.ain*self.con_len-self.ain*x+self.at*x) / self.con_len
         elif self.con_len < x <= self.con_len + self.div_len:
             area = (self.ats-self.at)*(x-self.con_len)/self.div_len + self.at
-        return 2 * area
+        return area
+
+    def a2x(self, a, front=1):
+        if front:
+            return brentq(lambda x: self.x2a(x)-a, 0, self.con_len)
+        else:
+            return brentq(lambda x: self.x2a(x)-a, self.con_len, self.t_len)
     
-    def get_y(self, x):
-        return self.get_area(x) / self.z_len / 2
+    def x2y(self, x):
+        return self.x2a(x) / self.z_len / 2
 
     @property
-    def max_y(self):
-        max_y = max(self.get_y(0), self.get_y(self.t_len))
-        return max_y
-    
-    def set_back_pressure(self, p):
-        self._back_pressure = p
-    
+    def ymax(self):
+        return max(self.x2y(0), self.x2y(self.t_len))
+
+    @property
+    def amax(self):
+        return max(self.x2a(0), self.x2a(self.t_len))
+
     def get_wall_shape(self):
-        y_in = self.get_y(0)
-        y_t = self.get_y(self.con_len)
-        y_ts = self.get_y(self.t_len)
+        yin = self.x2y(0)
+        yt = self.x2y(self.con_len)
+        yts = self.x2y(self.t_len)
         return np.array([
-            [0, y_in],
-            [self.con_len, y_t],
-            [self.t_len, y_ts],
-            [self.t_len, -y_ts],
-            [self.con_len, -y_t],
-            [0, -y_in],
+            [0, yin],
+            [self.con_len, yt],
+            [self.t_len, yts],
+            [self.t_len, -yts],
+            [self.con_len, -yt],
+            [0, -yin],
         ])
     
     def decide_case(self):
@@ -188,20 +212,57 @@ class WindTunnel(object):
             case = 7
         return case
 
+    def get_in_mach(self):
+        case = self.decide_case()
+        if case == 1 or case == 2:
+            astar = self.get_astar_if_subsonic()
+            in_mach = iflow.a2m(self.ain/astar, supersonic=0)
+        elif case == 3:
+            in_mach = iflow.a2m(self.ainat, supersonic=1)
+        return in_mach
+
     def get_astar_if_subsonic(self):
-        pass
+        case = self.decide_case()
+        if not case == 1 or case == 2:
+            raise InvalidCall
+
+        return self.ats / iflow.m2a(iflow.p2m(self.pb/self.pin))
     
-    def get_m(self, x):
+    def x2m(self, x):
         case = self.decide_case()
         
-        if case == 1 or case == 2:
-            aastar = self.get_area(x) / self.get_astar_if_subsonic()
-            m = iflow.a2m(aastar)
-        
+        if case in (1, 2):
+            aastar = self.x2a(x) / self.get_astar_if_subsonic()
+            m = iflow.a2m(aastar, supersonic=0)
+
+        elif case in (3, 4):
+            ap = self.atsat*self.pb/self.pin
+            mts = iflow.ap2m(ap)
+            p02 = self.pb / iflow.m2p(mts)
+            p02pin = p02 / self.pin
+            a2star = (ap/(self.pb/p02)/self.ats) ** -1
+            m1 = nsw.p02m(p02pin)
+            area = iflow.m2a(m1) * self.at
+            xns = self.a2x(area, 0)
+
+            if 0 <= x <= self.con_len:
+                m = iflow.a2m(self.x2a(x)/self.at, supersonic=0)
+            elif self.con_len <= x <= xns:
+                m = iflow.a2m(self.x2a(x)/self.at, supersonic=1)
+            elif xns < x <= self.t_len:
+                m = iflow.a2m(self.x2a(x)/a2star, supersonic=0)
+
+        elif case in (5, 6, 7):
+            if 0 <= x <= self.con_len:
+                m = iflow.a2m(self.x2a(x)/self.at, 0)
+            elif self.con_len <= x <= self.t_len:
+                m = iflow.a2m(self.x2a(x)/self.at, 1)
         return m
 
+        
     def get_p(self, x):
-        print 1
+        m = self.x2m(x)
+        return iflow.m2p(m)
 
 
 class Report(object):
@@ -217,7 +278,10 @@ class Report(object):
         if self.__wind_tunnel is None:
             raise WindTunnelNotBuild()
         return self.__wind_tunnel
-    
+
+    def save_plot(self, filename, fig):
+        fig.savefig(filename)
+
     def get_shape(self):
         points = self.wt.get_wall_shape()
         steps = len(points)
@@ -231,7 +295,7 @@ class Report(object):
             sub.plot(x, y, 'b')
         
         t_len = self.wt.t_len
-        max_y = self.wt.max_y
+        max_y = self.wt.ymax
         
         h_margin = t_len * 0.1 / 2
         v_margin = max_y * 0.1
@@ -240,14 +304,14 @@ class Report(object):
         return fig
     
     def save_shape_plot(self, filename):
-        self.get_figure().savefig(filename)
+        self.save_plot(filename, self.get_shape())
     
     def get_a(self):
         num = 1000
         xs = np.linspace(0, self.wt.t_len, num)
-        ys= np.zeros(num)
+        ys = np.zeros(num)
         for i in xrange(num):
-            ys[i] = self.wt.get_area(xs[i])
+            ys[i] = self.wt.x2a(xs[i])
         
         fig = plt.figure()
         sub = fig.add_subplot(111)
@@ -255,12 +319,12 @@ class Report(object):
         return fig
     
     def save_a_plot(self, filename):
-        self.get_a().savefig(filename)
+        self.save_plot(filename, self.get_a())
     
     def get_p(self):
         num = 1000
         xs = np.linspace(0, self.wt.t_len, num)
-        ys= np.zeros(num)
+        ys = np.zeros(num)
         for i in xrange(num):
             ys[i] = self.wt.get_p(xs[i])
         
@@ -270,15 +334,30 @@ class Report(object):
         return fig
     
     def save_p_plot(self, filename):
-        self.get_p().savefig(filename)
+        self.save_plot(filename, self.get_p())
+
+    def get_m(self):
+        num = 1000
+        xs = np.linspace(0, self.wt.t_len, num)
+        ys = np.zeros(num)
+        for i in xrange(num):
+            ys[i] = self.wt.x2m(xs[i])
+
+        fig = plt.figure()
+        sub = fig.add_subplot(111)
+        sub.plot(xs, ys, 'b')
+        return fig
+
+    def save_m_plot(self, filename):
+        self.save_plot(filename, self.get_m())
+
 
     def generate(self):
         pass
     
 
-t = WindTunnel(2.4, 2.4, 10e6, 300, 5, 5, 1, .98*10e6)
-t.get_m(0)
-print t.throat_area
-# r = Report()
-# r.build(t)
-# r.save_p_plot()
+t = WindTunnel(5, 1, 10e6, 300, 10, 5, 50, 1, 0.9999999999*10E6)
+print t.decide_case()
+r = Report()
+r.build(t)
+r.save_p_plot('1.png')
