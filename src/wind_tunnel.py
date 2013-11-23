@@ -257,14 +257,12 @@ class WindTunnel(Model):
         yin = self.x2y(0)
         yt = self.x2y(self.con_len)
         yts = self.x2y(self.t_len)
-        return np.array([
-            [0, yin],
-            [self.con_len, yt],
-            [self.t_len, yts],
-            [self.t_len, -yts],
-            [self.con_len, -yt],
-            [0, -yin],
-        ])
+        return np.array([[0, yin],
+                         [self.con_len, yt],
+                         [self.t_len, yts],
+                         [self.t_len, -yts],
+                         [self.con_len, -yt],
+                         [0, -yin]])
 
     @property
     def wc(self):
