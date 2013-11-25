@@ -9,13 +9,12 @@ from __future__ import absolute_import, division
 import numpy as np
 from scipy.optimize import brentq
 
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
+
 
 import isentropic_flow as ise_flow
 import normal_shock_wave as nsw
 from constants import EPSILON, R
+from common import Model, View, Controller
 
 
 class WindTunnelNotBuild(Exception):
@@ -24,21 +23,6 @@ class WindTunnelNotBuild(Exception):
 
 class InvalidCall(Exception):
     pass
-
-
-class Model(object):
-    pass
-
-
-class View(object):
-    pass
-
-
-class Controller(object):
-
-    def __init__(self, model, view):
-        self._model = model
-        self._view = view
 
 
 class WindTunnel(Model):
@@ -191,7 +175,7 @@ class WindTunnel(Model):
         return self.pb / ise_flow.m2p(self.mts_34)
 
     @property
-    def p02pin(self):
+    def p02_34pin(self):
         return self.p02_34 / self.pin
 
     @property
@@ -200,7 +184,7 @@ class WindTunnel(Model):
 
     @property
     def m1_34(self):
-        return nsw.p02m(self.p02pin)
+        return nsw.p02m(self.p02_34pin)
 
     @property
     def ap_34(self):
@@ -210,6 +194,13 @@ class WindTunnel(Model):
     def xns_34(self):
         area = ise_flow.m2a(self.m1_34) * self.at
         return self.a2x(area, 0)
+
+    @property
+    def p02(self):
+        if self.wc in (1, 2, 5, 6, 7):
+            return self.pin
+        elif self.wc in (3, 4):
+            return self.p02_34pin
 
     def x2m(self, x):
         if self.wc in (1, 2):
@@ -313,211 +304,3 @@ class WindTunnel(Model):
 
         return self.ats / ise_flow.m2a(ise_flow.p2m(self.pb/self.pin))
 
-
-class Diffuser(Model):
-
-    def __init__(self,
-                 in_mach,
-                 in_pressure,
-                 in_temperature,
-                 in_area,
-                 throat_area,
-                 out_area,
-                 con_len,
-                 div_len,
-                 z_len):
-        self._in_mach = in_mach
-        self._in_pressure = in_pressure
-        self._in_temperature = in_temperature
-        self._in_area = in_area
-        self._throat_area = throat_area
-        self._out_area = out_area
-        self._con_len = con_len
-        self._div_len = div_len
-        self._z_len = z_len
-
-    @property
-    def working_condition(self):
-        wc = 0
-        if self._in_mach < 1:
-            wc = 0
-        elif self._in_mach > 1:
-            wc = 1
-        return wc
-
-    @property
-    def wc(self):
-        return self.working_condition
-
-    @property
-    def ain(self):
-        return self._in_area
-
-    @property
-    def con_len(self):
-        return self._con_len
-
-    @property
-    def div_len(self):
-        return self._div_len
-
-    @property
-    def t_len(self):
-        return self.con_len + self.div_len
-
-    @property
-    def z_len(self):
-        return self._z_len
-
-    @property
-    def at(self):
-        return self._throat_area
-
-    @property
-    def aout(self):
-        return self._out_area
-
-    def x2a(self, x):
-        if x <= self.con_len:
-            area = (self.ain*self.con_len-self.ain*x+self.at*x) / self.con_len
-        elif self.con_len < x <= self.con_len + self.div_len:
-            area = (self.aout-self.at)*(x-self.con_len)/self.div_len + self.at
-        return area
-
-    def x2m(self, x):
-        wc = self.wc
-
-        if self.wc == 0:
-            aastar = self.x2a(x) / self.get_astar_if_subsonic()
-            m = ise_flow.a2m(aastar, supersonic=0)
-
-        else:
-            pass
-
-    def get_astar_if_subsonic(self):
-        return self.ain / ise_flow.m2a(self.ain)
-
-
-class TestSection(Model):
-
-    def __init__(self, in_mach, t_len):
-        self._in_mach = in_mach
-        self._len = t_len
-
-    @property
-    def t_len(self):
-        return self._len
-
-    def x2m(self, x):
-        return self._in_mach
-
-
-class Combination(Model):
-
-    def __init__(self, nozzle, test_section, diffuser):
-        self._nozzle = nozzle
-        self._ts = test_section
-        self._diffuser = diffuser
-
-    @property
-    def n_len(self):
-        return self._nozzle.t_len
-
-    @property
-    def n_ts_len(self):
-        return self.n_len + self._ts.t_len
-
-    @property
-    def n_ts_d_len(self):
-        return self.n_ts_len + self._diffuser.t_len
-
-    def x2m(self, x):
-        m = 0
-        if 0 <= x <= self.n_len:
-            m = self._nozzle.x2m(x)
-        elif self.n_len < x <= self.n_ts_len:
-            m = self._ts.x2m(x)
-        elif self.n_ts_len <= x <= self.n_ts_d_len:
-            m = self._diffuser.x2m(x)
-        return m
-
-
-class Report(object):
-
-    def __init__(self):
-        pass
-
-    def shape(self, points):
-        steps = len(points)
-        points = np.vstack([points, points[0]])
-        fig = plt.figure()
-        
-        for i in xrange(steps):
-            sub = fig.add_subplot(111)
-            x = [points[i, 0], points[i+1, 0]]
-            y = [points[i, 1], points[i+1, 1]]
-            sub.plot(x, y, 'b')
-        
-        #t_len = self.wt.t_len
-        #max_y = self.wt.ymax
-        
-        #h_margin = t_len * 0.1 / 2
-        #v_margin = max_y * 0.1
-        #plt.axis([-h_margin, t_len+h_margin,
-        #          -max_y-v_margin, max_y+v_margin])
-        return fig
-
-    def graph(self, x, profile):
-        graph = plt.figure()
-        sub = graph.add_subplot(111)
-        sub.plot(x, profile, 'b')
-        return graph
-
-
-class WindTunnelReportCreator(Controller):
-
-    def __init__(self, model, view):
-        Controller.__init__(self, model, view)
-
-    @property
-    def plot_types(self):
-        return ['s', 'a', 'm', 'p', 'rho', 't']
-
-    def save_plot(self, filename, plot_type, steps=1000):
-        if plot_type == 's':
-            points = self._model.get_wall_shape()
-            fig = self._view.shape(points)
-            fig.savefig(filename)
-        else:
-            xs = np.linspace(0, self._model.t_len, steps)
-            profile = np.zeros(steps)
-
-            if plot_type == 'a':
-                for i in xrange(steps):
-                    profile[i] = self._model.x2a(xs[i])
-            elif plot_type == 'm':
-                for i in xrange(steps):
-                    profile[i] = self._model.x2m(xs[i])
-            elif plot_type == 'p':
-                for i in xrange(steps):
-                    profile[i] = self._model.x2p(xs[i])
-            elif plot_type == 'rho':
-                for i in xrange(steps):
-                    profile[i] = self._model.x2rho(xs[i])
-            elif plot_type == 't':
-                for i in xrange(steps):
-                    profile[i] = self._model.x2t(xs[i])
-
-            graph = self._view.graph(xs, profile)
-            graph.savefig(filename)
-
-    def generate(self):
-        for t in self.plot_types:
-            self.save_plot('%s.png' % t, t)
-
-
-if __name__ == '__main__':
-    t = WindTunnel(2.4, 1, 10e6, 300, 10, 5, 20, 1, 0.5*10E6)
-    r = Report()
-    c = WindTunnelReportCreator(t, r)
-    c.generate()
