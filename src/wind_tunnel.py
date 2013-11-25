@@ -314,7 +314,7 @@ class WindTunnel(Model):
         return self.ats / ise_flow.m2a(ise_flow.p2m(self.pb/self.pin))
 
 
-class Diffussor(Model):
+class Diffuser(Model):
 
     def __init__(self,
                  in_mach,
@@ -414,10 +414,10 @@ class TestSection(Model):
 
 class Combination(Model):
 
-    def __init__(self, nozzle, test_section, diffusor):
+    def __init__(self, nozzle, test_section, diffuser):
         self._nozzle = nozzle
         self._ts = test_section
-        self._diffusor = diffusor
+        self._diffuser = diffuser
 
     @property
     def n_len(self):
@@ -429,7 +429,7 @@ class Combination(Model):
 
     @property
     def n_ts_d_len(self):
-        return self.n_ts_len + self._diffusor.t_len
+        return self.n_ts_len + self._diffuser.t_len
 
     def x2m(self, x):
         m = 0
@@ -438,7 +438,7 @@ class Combination(Model):
         elif self.n_len < x <= self.n_ts_len:
             m = self._ts.x2m(x)
         elif self.n_ts_len <= x <= self.n_ts_d_len:
-            m = self._diffusor.x2m(x)
+            m = self._diffuser.x2m(x)
         return m
 
 
