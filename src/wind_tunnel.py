@@ -314,8 +314,136 @@ class WindTunnel(Model):
         return self.ats / ise_flow.m2a(ise_flow.p2m(self.pb/self.pin))
 
 
+class Diffussor(Model):
+
+    def __init__(self,
+                 in_mach,
+                 in_pressure,
+                 in_temperature,
+                 in_area,
+                 throat_area,
+                 out_area,
+                 con_len,
+                 div_len,
+                 z_len):
+        self._in_mach = in_mach
+        self._in_pressure = in_pressure
+        self._in_temperature = in_temperature
+        self._in_area = in_area
+        self._throat_area = throat_area
+        self._out_area = out_area
+        self._con_len = con_len
+        self._div_len = div_len
+        self._z_len = z_len
+
+    @property
+    def working_condition(self):
+        wc = 0
+        if self._in_mach < 1:
+            wc = 0
+        elif self._in_mach > 1:
+            wc = 1
+        return wc
+
+    @property
+    def wc(self):
+        return self.working_condition
+
+    @property
+    def ain(self):
+        return self._in_area
+
+    @property
+    def con_len(self):
+        return self._con_len
+
+    @property
+    def div_len(self):
+        return self._div_len
+
+    @property
+    def t_len(self):
+        return self.con_len + self.div_len
+
+    @property
+    def z_len(self):
+        return self._z_len
+
+    @property
+    def at(self):
+        return self._throat_area
+
+    @property
+    def aout(self):
+        return self._out_area
+
+    def x2a(self, x):
+        if x <= self.con_len:
+            area = (self.ain*self.con_len-self.ain*x+self.at*x) / self.con_len
+        elif self.con_len < x <= self.con_len + self.div_len:
+            area = (self.aout-self.at)*(x-self.con_len)/self.div_len + self.at
+        return area
+
+    def x2m(self, x):
+        wc = self.wc
+
+        if self.wc == 0:
+            aastar = self.x2a(x) / self.get_astar_if_subsonic()
+            m = ise_flow.a2m(aastar, supersonic=0)
+
+        else:
+            pass
+
+    def get_astar_if_subsonic(self):
+        return self.ain / ise_flow.m2a(self.ain)
+
+
+class TestSection(Model):
+
+    def __init__(self, in_mach, t_len):
+        self._in_mach = in_mach
+        self._len = t_len
+
+    @property
+    def t_len(self):
+        return self._len
+
+    def x2m(self, x):
+        return self._in_mach
+
+
+class Combination(Model):
+
+    def __init__(self, nozzle, test_section, diffusor):
+        self._nozzle = nozzle
+        self._ts = test_section
+        self._diffusor = diffusor
+
+    @property
+    def n_len(self):
+        return self._nozzle.t_len
+
+    @property
+    def n_ts_len(self):
+        return self.n_len + self._ts.t_len
+
+    @property
+    def n_ts_d_len(self):
+        return self.n_ts_len + self._diffusor.t_len
+
+    def x2m(self, x):
+        m = 0
+        if 0 <= x <= self.n_len:
+            m = self._nozzle.x2m(x)
+        elif self.n_len < x <= self.n_ts_len:
+            m = self._ts.x2m(x)
+        elif self.n_ts_len <= x <= self.n_ts_d_len:
+            m = self._diffusor.x2m(x)
+        return m
+
+
 class Report(object):
-    
+
     def __init__(self):
         pass
 
