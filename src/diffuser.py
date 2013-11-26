@@ -27,7 +27,8 @@ class Diffuser(Model):
                  z_len,
                  back_pressure,
                  nat,
-                 np0):
+                 np0,
+                 nwc):
         self._in_mach = in_mach
         self._p01 = p01
         self._in_p = in_p
@@ -41,6 +42,9 @@ class Diffuser(Model):
         self._back_pressure = back_pressure
         self._nat = nat
         self._np0 = np0
+
+        assert nwc in (1, 2, 6)
+        self._nwc = nwc
 
     @property
     def in_mach(self):
@@ -99,35 +103,38 @@ class Diffuser(Model):
     def np0(self):
         return self._np0
 
-    # CHECK HERE!!!
     @property
-    def in_sub_ap_34(self):
-        return self.ae / self.nat * self.pb / self.np0 * .5
+    def nwc(self):
+        return self._nwc
 
-    @property
-    def in_sub_mts_34(self):
-        return ise_flow.ap2m(self.in_sub_ap_34)
-
-    @property
-    def in_sub_p02_34(self):
-        return self.pb / ise_flow.m2p(self.in_sub_mts_34)
-
-    @property
-    def in_sub_p02p01(self):
-        return self.in_sub_p02_34 / self.p01
-
-    @property
-    def in_sub_a2star_34(self):
-        return (self.in_sub_ap_34/(self.pb/self.in_sub_p02_34)/self.ae) ** -1
-
-    @property
-    def in_sub_m1_34(self):
-        return nsw.p02m(self.in_sub_p02p01)
-
-    @property
-    def in_sub_xns_34(self):
-        area = ise_flow.m2a(self.in_sub_m1_34) * self.at
-        return self.a2x(area, 0)
+    #@property
+    #def in_sub_ap_34(self):
+    #    return self.ae / self.nat * self.pb / self.np0 * .5
+    #
+    #@property
+    #def in_sub_mts_34(self):
+    #    return ise_flow.ap2m(self.in_sub_ap_34)
+    #
+    #@property
+    #def in_sub_p02_34(self):
+    #    return self.pb / ise_flow.m2p(self.in_sub_mts_34)
+    #
+    #@property
+    #def in_sub_p02p01(self):
+    #    return self.in_sub_p02_34 / self.p01
+    #
+    #@property
+    #def in_sub_a2star_34(self):
+    #    return (self.in_sub_ap_34/(self.pb/self.in_sub_p02_34)/self.ae) ** -1
+    #
+    #@property
+    #def in_sub_m1_34(self):
+    #    return nsw.p02m(self.in_sub_p02p01)
+    #
+    #@property
+    #def in_sub_xns_34(self):
+    #    area = ise_flow.m2a(self.in_sub_m1_34) * self.at
+    #    return self.a2x(area, 0)
 
     def x2a(self, x):
         area = 0
@@ -173,43 +180,57 @@ class Diffuser(Model):
             wc = 7
         return wc
 
+    @property
+    def shock_ap(self):
+        return self.ae / self.nat * self.pb / self.np0
+
+    @property
+    def shock_me(self):
+        return ise_flow.ap2m(self.shock_ap)
+
+    @property
+    def shock_p02(self):
+        return self.pb / ise_flow.m2p(self.shock_me)
+
+    @property
+    def shock_p02p01(self):
+        return self.pb / ise_flow.m2p(self.shock_me) / self.p01
+
+    @property
+    def shock_a2star(self):
+        return (self.shock_ap/(self.pb/self.shock_p02)/self.ae) ** -1
+
+    @property
+    def shock_m1(self):
+        return nsw.p02m(self.shock_p02p01)
+
+    @property
+    def xns(self):
+        area = ise_flow.m2a(self.shock_m1) * self.nat
+        return self.a2x(area, 0)
+
     def x2m(self, x):
         m = 0
-
-        # flow entering convergent part is subsonic.
-        if self.wc == 0:
-            case = self.get_working_condition()
-            #print case
-            if case in (1, 2):
-                aastar = self.x2a(x) / self.get_astar_if_subsonic()
-                m = ise_flow.a2m(aastar, supersonic=0)
-
-            elif case in (3, 4):
-                if 0 <= x <= self.con_len:
-                    m = ise_flow.a2m(self.x2a(x)/self.at, supersonic=0)
-                elif self.con_len <= x < self.in_sub_xns_34:
-                    m = ise_flow.a2m(self.x2a(x)/self.at, supersonic=1)
-                elif self.in_sub_xns_34 < x <= self.t_len:
-                    m = ise_flow.a2m(self.x2a(x)/self.in_sub_a2star_34, supersonic=0)
-
-        # flow entering convergent part is supersonic.
-        else:
-            if 0 <= x <= self.in_sub_xns_34:
-                m = ise_flow.a2m(self.x2a(x)/self.at, supersonic=1)
-            elif self.in_sub_xns_34 < x <= self.t_len:
-                m = ise_flow.a2m(self.x2a(x)/self.in_sub_a2star_34, supersonic=0)
+        if self.nwc in (1, 2):
+            m = ise_flow.a2m(self.x2a(x), 0)
+        elif self.nwc == 6:
+            if 0 <= x <= self.xns:
+                m = ise_flow.a2m(self.x2a(x)/self.nat, 1)
+            elif self.xns < x <= self.t_len:
+                m = ise_flow.a2m(self.x2a(x)/self.nat, supersonic=0)
         return m
 
     def x2p(self, x):
-        p = 0
-        if self.wc == 0:
-            p = ise_flow.m2p(self.x2m(x))
-        else:
-            if 0 <= x <= self.in_sub_xns_34:
-                p = ise_flow.m2p(self.x2m(x))
-            elif self.in_sub_xns_34 < x <= self.t_len:
-                p = ise_flow.m2p(self.x2m(x)) * self.in_sub_p02p01
-        return p
+        print self.x2m(x)
+        #p = 0
+        #if self.nwc in (1, 2):
+        #    p = ise_flow.m2p(self.x2m(x))
+        #elif self.nwc == 6:
+        #    if 0 <= x <= self.xns:
+        #        p = ise_flow.m2p(self.x2m(x))
+        #    elif self.xns < x <= self.t_len:
+        #        p = ise_flow.m2p(self.x2m(x)) * self.shock_p02p01
+        #return p
 
     def get_astar_if_subsonic(self):
         return self.ain / ise_flow.m2a(self.in_mach)

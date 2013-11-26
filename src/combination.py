@@ -55,7 +55,8 @@ class Combination(Model):
                                   self._nozzle.z_len,
                                   back_pressure,
                                   self._nozzle.at,
-                                  self._nozzle.p01)
+                                  self._nozzle.p01,
+                                  self._nozzle.wc)
 
     @property
     def n_len(self):
@@ -200,13 +201,13 @@ class WindTunnelReportCreator(Controller):
 
 
 if __name__ == '__main__':
-    pb = .98E6
+    #pb = .068399E6
+    pb = 0.99E6
     t = WindTunnel(2.4, 0.24, 1e6, 300, 10, 5, 5, 1, pb)
     com = Combination(t)
     com.add_test_section(5)
-    com.add_diffuser(0.17, 5, 5, 5, pb)
-    #print com._diffuser.in_sub_ap_34
+    com.add_diffuser(0.17, 5, 5, 5, 0.99E6)
     r = Report()
-    c = WindTunnelReportCreator(t, r)
+    c = WindTunnelReportCreator(com, r)
     c.save_plot('1.png', 'm', steps=1000)
     #c.generate()

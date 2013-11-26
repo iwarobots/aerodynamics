@@ -41,3 +41,7 @@ def m2p0(m):
 
 def p02m(p0):
     return brentq(lambda x: m2p0(x)-p0, 1, MAX_MACH)
+
+
+def m22m1(m2):
+    return brentq(lambda x: m2m2(x)-m2, 1, MAX_MACH)

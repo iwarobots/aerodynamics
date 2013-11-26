@@ -63,4 +63,4 @@ class TestSection(Model):
         return self.in_mach
 
     def x2p(self, x):
-        return self.in_p
+        return self.in_p / self.p01
