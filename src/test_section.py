@@ -75,4 +75,4 @@ class TestSection(Model):
         return self.in_t / self.t01
 
     def x2rho(self, x):
-        return self.x2p(x) / self.x2t(x)
+        return self.x2p(x) / (self.x2t(x)) ** -1
