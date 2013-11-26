@@ -113,7 +113,7 @@ class Combination(Model):
         return self.x2func('x2t', x)
 
     def x2rho(self, x):
-        return self.x2rho('x2rho', x)
+        return self.x2func('x2rho', x)
 
     def get_wall_shape(self):
         x1 = np.array([0, self.n_con_len,
