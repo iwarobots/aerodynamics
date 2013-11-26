@@ -32,6 +32,7 @@ class Combination(Model):
                                self._nozzle.x2p(self.n_len)*self._nozzle.p02,
                                self._nozzle.x2t(self.n_len)*self._nozzle.t0,
                                self._nozzle.p02,
+                               self._nozzle.t0,
                                self._nozzle.z_len,
                                ts_len)
 
@@ -107,6 +108,12 @@ class Combination(Model):
 
     def x2p(self, x):
         return self.x2func('x2p', x)
+
+    def x2t(self, x):
+        return self.x2func('x2t', x)
+
+    def x2rho(self, x):
+        return self.x2rho('x2rho', x)
 
     def get_wall_shape(self):
         x1 = np.array([0, self.n_con_len,
@@ -201,13 +208,14 @@ class WindTunnelReportCreator(Controller):
 
 
 if __name__ == '__main__':
+    import uuid
     #pb = .068399E6
     pb = 0.99E6
-    t = WindTunnel(2.4, 0.24, 1e6, 300, 10, 5, 5, 1, pb)
+    t = WindTunnel(2.4, 0.24, 1e6, 300, 20, 5, 5, 1, pb)
     com = Combination(t)
     com.add_test_section(5)
     com.add_diffuser(0.17, 5, 5, 5, 0.99E6)
     r = Report()
     c = WindTunnelReportCreator(com, r)
-    c.save_plot('1.png', 'm', steps=1000)
+    c.save_plot('%s.png' % str(uuid.uuid4()), 't', steps=1000)
     #c.generate()

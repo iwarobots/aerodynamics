@@ -15,6 +15,7 @@ class TestSection(Model):
                  in_p,
                  in_t,
                  p01,
+                 t01,
                  z_len,
                  t_len):
         self._in_mach = in_mach
@@ -22,6 +23,7 @@ class TestSection(Model):
         self._in_p = in_p
         self._in_t = in_t
         self._p01 = p01
+        self._t01 = t01
         self._z_len = z_len
         self._t_len = t_len
 
@@ -64,3 +66,13 @@ class TestSection(Model):
 
     def x2p(self, x):
         return self.in_p / self.p01
+
+    @property
+    def t01(self):
+        return self._t01
+
+    def x2t(self, x):
+        return self.in_t / self.t01
+
+    def x2rho(self, x):
+        return self.x2p(x) / self.x2t(x)

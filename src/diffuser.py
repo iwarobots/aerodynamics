@@ -209,10 +209,14 @@ class Diffuser(Model):
         area = ise_flow.m2a(self.shock_m1) * self.nat
         return self.a2x(area, 0)
 
+    def get_astar_if_subsonic(self):
+        return self.ae / ise_flow.m2a(ise_flow.p2m(self.pb/self.p01))
+
     def x2m(self, x):
         m = 0
         if self.nwc in (1, 2):
-            m = ise_flow.a2m(self.x2a(x), 0)
+            aastar = self.x2a(x) / self.get_astar_if_subsonic()
+            m = ise_flow.a2m(aastar, 0)
         elif self.nwc == 6:
             if 0 <= x <= self.xns:
                 m = ise_flow.a2m(self.x2a(x)/self.nat, 1)
@@ -221,16 +225,21 @@ class Diffuser(Model):
         return m
 
     def x2p(self, x):
-        print self.x2m(x)
-        #p = 0
-        #if self.nwc in (1, 2):
-        #    p = ise_flow.m2p(self.x2m(x))
-        #elif self.nwc == 6:
-        #    if 0 <= x <= self.xns:
-        #        p = ise_flow.m2p(self.x2m(x))
-        #    elif self.xns < x <= self.t_len:
-        #        p = ise_flow.m2p(self.x2m(x)) * self.shock_p02p01
-        #return p
+        p = 0
+        if self.nwc in (1, 2):
+            p = ise_flow.m2p(self.x2m(x))
+        elif self.nwc == 6:
+            if 0 <= x <= self.xns:
+                p = ise_flow.m2p(self.x2m(x))
+            elif self.xns < x <= self.t_len:
+                p = ise_flow.m2p(self.x2m(x)) * self.shock_p02p01
+        return p
+
+    def x2rho(self, x):
+        return self.x2p(x) / self.x2t(x)
+
+    def x2t(self, x):
+        return ise_flow.m2t(self.x2m(x))
 
     def get_astar_if_subsonic(self):
         return self.ain / ise_flow.m2a(self.in_mach)
