@@ -232,7 +232,7 @@ class WindTunnel(Model):
         return p
 
     def x2rho(self, x):
-        return self.x2p(x) / self.x2t(x)
+        return self.x2p(x) / (self.x2t(x)) ** -1
 
     def x2t(self, x):
         return ise_flow.m2t(self.x2m(x))
