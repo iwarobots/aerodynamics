@@ -3,8 +3,10 @@
 
 from __future__ import absolute_import, division
 
+import numpy as np
 from scipy.optimize import brentq
 
+from constants import EPSILON
 import isentropic_flow as ise_flow
 import normal_shock_wave as nsw
 from common import Model
@@ -14,38 +16,31 @@ class Diffuser(Model):
 
     def __init__(self,
                  in_mach,
-                 in_pressure,
-                 in_temperature,
+                 p01,
+                 in_p,
+                 in_t,
                  in_area,
-                 throat_area,   # NOTE: At2 should be greater than At2.
-                 out_area,
+                 at,
+                 ae,
                  con_len,
                  div_len,
                  z_len,
                  back_pressure,
-                 nozzle_at,
-                 p02):
+                 nat,
+                 np0):
         self._in_mach = in_mach
-        self._in_pressure = in_pressure
-        self._in_temperature = in_temperature
+        self._p01 = p01
+        self._in_p = in_p
+        self._in_t = in_t
         self._in_area = in_area
-        self._throat_area = throat_area
-        self._out_area = out_area
+        self._at = at
+        self._ae = ae
         self._con_len = con_len
         self._div_len = div_len
         self._z_len = z_len
         self._back_pressure = back_pressure
-        self._nozzle_at = nozzle_at
-        self._p02 = p02
-
-    @property
-    def working_condition(self):
-        wc = 0
-        if self._in_mach < 1:
-            wc = 0
-        elif self._in_mach > 1:
-            wc = 1
-        return wc
+        self._nat = nat
+        self._np0 = np0
 
     @property
     def in_mach(self):
@@ -53,7 +48,12 @@ class Diffuser(Model):
 
     @property
     def wc(self):
-        return self.working_condition
+        wc = 0
+        if self._in_mach < 1:
+            wc = 0
+        elif self._in_mach > 1:
+            wc = 1
+        return wc
 
     @property
     def ain(self):
@@ -77,57 +77,61 @@ class Diffuser(Model):
 
     @property
     def at(self):
-        return self._throat_area
+        return self._at
 
     @property
     def ae(self):
-        return self._out_area
+        return self._ae
 
     @property
     def pb(self):
         return self._back_pressure
 
     @property
+    def p01(self):
+        return self._p01
+
+    @property
     def nat(self):
-        return self._nozzle_at
+        return self._nat
 
     @property
-    def nip(self):
-        return self._p02
+    def np0(self):
+        return self._np0
+
+    # CHECK HERE!!!
+    @property
+    def in_sub_ap_34(self):
+        return self.ae / self.nat * self.pb / self.np0 * .5
 
     @property
-    def ap_34(self):
-        return self.ae / self.nat * self.pb / self.nip
+    def in_sub_mts_34(self):
+        return ise_flow.ap2m(self.in_sub_ap_34)
 
     @property
-    def mts_34(self):
-        return ise_flow.ap2m(self.ap_34)
+    def in_sub_p02_34(self):
+        return self.pb / ise_flow.m2p(self.in_sub_mts_34)
 
     @property
-    def p02_34(self):
-        return self.pb / ise_flow.m2p(self.mts_34)
+    def in_sub_p02p01(self):
+        return self.in_sub_p02_34 / self.p01
 
     @property
-    def p02pin(self):
-        print self.p02_34 / self.nip
-        return self.p02_34 / self.nip
+    def in_sub_a2star_34(self):
+        return (self.in_sub_ap_34/(self.pb/self.in_sub_p02_34)/self.ae) ** -1
 
     @property
-    def a2star_34(self):
-        return (self.ap_34/(self.pb/self.p02_34)/self.ae) ** -1
+    def in_sub_m1_34(self):
+        return nsw.p02m(self.in_sub_p02p01)
 
     @property
-    def m1_34(self):
-        return nsw.p02m(self.p02pin)
-
-    @property
-    def xns_34(self):
-        area = ise_flow.m2a(self.m1_34) * self.nat
+    def in_sub_xns_34(self):
+        area = ise_flow.m2a(self.in_sub_m1_34) * self.at
         return self.a2x(area, 0)
 
     def x2a(self, x):
         area = 0
-        if x <= self.con_len:
+        if 0 <= x <= self.con_len:
             area = (self.ain*self.con_len-self.ain*x+self.at*x) / self.con_len
         elif self.con_len < x <= self.t_len:
             area = (self.ae-self.at)*(x-self.con_len)/self.div_len + self.at
@@ -142,17 +146,58 @@ class Diffuser(Model):
         else:
             return brentq(lambda x: self.x2a(x)-a, self.con_len, self.t_len)
 
+    def get_working_condition(self):
+        # Mach number for the limiting case.
+        ml = ise_flow.a2m(self.ae/self.at, 0)
+        # Mach number for the design case.
+        mmax = ise_flow.a2m(self.ae/self.at, 1)
+
+        pl = ise_flow.m2p(ml)
+        pd = ise_flow.m2p(mmax)
+        pns = ise_flow.m2p(mmax) * nsw.m2p(mmax)
+
+        ratio = self.pb / self.p01
+        if ratio > pl:
+            wc = 1
+        elif abs(ratio-pl) < EPSILON:
+            wc = 2
+        elif pns < ratio < pl:
+            wc = 3
+        elif abs(ratio-pns) < EPSILON:
+            wc = 4
+        elif pd < ratio < pns:
+            wc = 5
+        elif abs(ratio-pd) < EPSILON:
+            wc = 6
+        elif ratio < pd:
+            wc = 7
+        return wc
+
     def x2m(self, x):
         m = 0
-        if self.wc == 0:
-            aastar = self.x2a(x) / self.get_astar_if_subsonic()
-            m = ise_flow.a2m(aastar, supersonic=0)
 
+        # flow entering convergent part is subsonic.
+        if self.wc == 0:
+            case = self.get_working_condition()
+            #print case
+            if case in (1, 2):
+                aastar = self.x2a(x) / self.get_astar_if_subsonic()
+                m = ise_flow.a2m(aastar, supersonic=0)
+
+            elif case in (3, 4):
+                if 0 <= x <= self.con_len:
+                    m = ise_flow.a2m(self.x2a(x)/self.at, supersonic=0)
+                elif self.con_len <= x < self.in_sub_xns_34:
+                    m = ise_flow.a2m(self.x2a(x)/self.at, supersonic=1)
+                elif self.in_sub_xns_34 < x <= self.t_len:
+                    m = ise_flow.a2m(self.x2a(x)/self.in_sub_a2star_34, supersonic=0)
+
+        # flow entering convergent part is supersonic.
         else:
-            if 0 <= x <= self.xns_34:
+            if 0 <= x <= self.in_sub_xns_34:
                 m = ise_flow.a2m(self.x2a(x)/self.at, supersonic=1)
-            elif self.xns_34 < x <= self.t_len:
-                m = ise_flow.a2m(self.x2a(x)/self.a2star_34, supersonic=0)
+            elif self.in_sub_xns_34 < x <= self.t_len:
+                m = ise_flow.a2m(self.x2a(x)/self.in_sub_a2star_34, supersonic=0)
         return m
 
     def x2p(self, x):
@@ -160,10 +205,10 @@ class Diffuser(Model):
         if self.wc == 0:
             p = ise_flow.m2p(self.x2m(x))
         else:
-            if 0 <= x <= self.xns_34:
+            if 0 <= x <= self.in_sub_xns_34:
                 p = ise_flow.m2p(self.x2m(x))
-            elif self.xns_34 < x <= self.t_len:
-                p = ise_flow.m2p(self.x2m(x)) * self.p02_34 / self.pin
+            elif self.in_sub_xns_34 < x <= self.t_len:
+                p = ise_flow.m2p(self.x2m(x)) * self.in_sub_p02p01
         return p
 
     def get_astar_if_subsonic(self):

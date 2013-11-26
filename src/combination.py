@@ -15,6 +15,10 @@ from test_section import TestSection
 from diffuser import Diffuser
 
 
+class InvalidThroatArea(Exception):
+    pass
+
+
 class Combination(Model):
 
     def __init__(self, nozzle):
@@ -25,29 +29,33 @@ class Combination(Model):
     def add_test_section(self, ts_len):
         self._ts = TestSection(self._nozzle.x2m(self.n_len),
                                self._nozzle.ats,
-                               self._nozzle.x2p(self.n_len),
+                               self._nozzle.x2p(self.n_len)*self._nozzle.p02,
+                               self._nozzle.x2t(self.n_len)*self._nozzle.t0,
                                self._nozzle.p02,
                                self._nozzle.z_len,
                                ts_len)
 
     def add_diffuser(self,
-                     throat_area,
-                     out_area,
+                     at,
+                     ae,
                      con_len,
                      div_len,
                      back_pressure):
+        if not self._nozzle.at <= at < self._nozzle.ats:
+            raise InvalidThroatArea
         self._diffuser = Diffuser(self._nozzle.x2m(self.n_len),
-                                  self._nozzle.x2p(self.n_len),
-                                  self._nozzle.x2t(self.n_len),
+                                  self._nozzle.p02,
+                                  self._nozzle.x2p(self.n_len)*self._nozzle.p02,
+                                  self._nozzle.x2t(self.n_len)*self._nozzle.t0,
                                   self._nozzle.ats,
-                                  throat_area,
-                                  out_area,
+                                  at,
+                                  ae,
                                   con_len,
                                   div_len,
                                   self._nozzle.z_len,
                                   back_pressure,
                                   self._nozzle.at,
-                                  self._nozzle.p02)
+                                  self._nozzle.p01)
 
     @property
     def n_len(self):
@@ -114,7 +122,6 @@ class Combination(Model):
         for i in xrange(n):
             ys[i] = self.x2y(xs[i])
             ys[2*n-i-1] = -self.x2y(xs[i])
-        print np.array([xs, ys]).T
         return np.array([xs, ys]).T
 
 
@@ -193,13 +200,13 @@ class WindTunnelReportCreator(Controller):
 
 
 if __name__ == '__main__':
-    t = WindTunnel(2.4, 1, 10e6, 300, 10, 5, 5, 1, 0.5*10E6)
+    pb = .98E6
+    t = WindTunnel(2.4, 0.24, 1e6, 300, 10, 5, 5, 1, pb)
     com = Combination(t)
     com.add_test_section(5)
-    com.add_diffuser(0.75, 5, 5, 5, 0.5*10E6)
-    print com._ts.x2p(5)
-    print com._diffuser._p02
+    com.add_diffuser(0.17, 5, 5, 5, pb)
+    #print com._diffuser.in_sub_ap_34
     r = Report()
-    c = WindTunnelReportCreator(com, r)
-    c.save_plot('1.png', 'p', steps=1000)
+    c = WindTunnelReportCreator(t, r)
+    c.save_plot('1.png', 'm', steps=1000)
     #c.generate()

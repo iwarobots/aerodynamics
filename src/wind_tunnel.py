@@ -30,20 +30,19 @@ class WindTunnel(Model):
     def __init__(self,
                  design_mach,
                  test_section_area,
-                 in_pressure,   # NOTE: This is not reservoir pressure.
-                 in_temperature,    # NOTE: This is not reservoir temperature.
+                 p01,
+                 t0,
                  in_area,
                  con_len,
                  div_len,
                  z_len,
                  back_pressure):
-        Model.__init__(self)
 
         # Properties specified by the designer of the wind tunnel
         self._design_mach = design_mach
         self._test_section_area = test_section_area
-        self._in_pressure = in_pressure
-        self._in_temperature = in_temperature
+        self._p01 = p01
+        self._t0 = t0
         self._in_area = in_area
         self._con_len = con_len
         self._div_len = div_len
@@ -131,12 +130,12 @@ class WindTunnel(Model):
         return self._back_pressure
         
     @property
-    def inlet_pressure(self):
-        return self._in_pressure
+    def p01(self):
+        return self._p01
 
     @property
-    def pin(self):
-        return self._in_pressure
+    def t0(self):
+        return self._t0
 
     ##########################################################################
     # Methods to change working condition.
@@ -145,12 +144,12 @@ class WindTunnel(Model):
         self._back_pressure = p
         self._working_condition = self.get_working_condition()
 
-    def change_inlet_pressure(self, p):
-        self._in_pressure = p
+    def change_p01(self, p0):
+        self._p01 = p0
         self._working_condition = self.get_working_condition()
 
-    def change_inlet_temperature(self, t):
-        self._in_temperature = t
+    def change_t0(self, t0):
+        self._t0 = t0
         self._working_condition = self.get_working_condition()
 
     ##########################################################################
@@ -175,8 +174,8 @@ class WindTunnel(Model):
         return self.pb / ise_flow.m2p(self.mts_34)
 
     @property
-    def p02_34pin(self):
-        return self.p02_34 / self.pin
+    def p02_34p01(self):
+        return self.p02_34 / self.p01
 
     @property
     def a2star_34(self):
@@ -184,11 +183,11 @@ class WindTunnel(Model):
 
     @property
     def m1_34(self):
-        return nsw.p02m(self.p02_34pin)
+        return nsw.p02m(self.p02_34p01)
 
     @property
     def ap_34(self):
-        return self.atsat * self.pb / self.pin
+        return self.atsat * self.pb / self.p01
 
     @property
     def xns_34(self):
@@ -198,9 +197,9 @@ class WindTunnel(Model):
     @property
     def p02(self):
         if self.wc in (1, 2, 5, 6, 7):
-            return self.pin
+            return self.p01
         elif self.wc in (3, 4):
-            return self.p02_34pin
+            return self.p02_34
 
     def x2m(self, x):
         if self.wc in (1, 2):
@@ -229,7 +228,7 @@ class WindTunnel(Model):
             if 0 <= x <= self.xns_34:
                 p = ise_flow.m2p(self.x2m(x))
             elif self.xns_34 < x <= self.t_len:
-                p = ise_flow.m2p(self.x2m(x)) * self.p02_34 / self.pin
+                p = ise_flow.m2p(self.x2m(x)) * self.p02_34 / self.p01
         return p
 
     def x2rho(self, x):
@@ -271,7 +270,7 @@ class WindTunnel(Model):
         pd = ise_flow.m2p(md)
         pns = ise_flow.m2p(md) * nsw.m2p(md)
 
-        ratio = self.pb / self.pin
+        ratio = self.pb / self.p01
         if ratio > pl:
             wc = 1
         elif abs(ratio-pl) < EPSILON:
@@ -302,5 +301,5 @@ class WindTunnel(Model):
         if not case == 1 or case == 2:
             raise InvalidCall
 
-        return self.ats / ise_flow.m2a(ise_flow.p2m(self.pb/self.pin))
+        return self.ats / ise_flow.m2a(ise_flow.p2m(self.pb/self.p01))
 
