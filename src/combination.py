@@ -211,11 +211,22 @@ if __name__ == '__main__':
     import uuid
     #pb = .068399E6
     pb = 0.99E6
-    t = WindTunnel(2.4, 0.24, 1e6, 300, 20, 5, 5, 1, pb)
+    t = WindTunnel(2.4,               # md
+                   0.24,              # ats
+                   1e6,               # p0
+                   300,               # t0
+                   20,                # ain
+                   5,                 # con_len
+                   5,                 # div_len
+                   1,                 # z_len
+                   0.99E6)            # pb
     com = Combination(t)
-    com.add_test_section(5)
-    com.add_diffuser(0.17, 5, 5, 5, 0.99E6)
+    com.add_test_section(5)           # ts_len
+    com.add_diffuser(0.17,            # at
+                     5,               # ae
+                     5,               # con_len
+                     5,               # div_len
+                     0.99E6)          # pb
     r = Report()
     c = WindTunnelReportCreator(com, r)
-    c.save_plot('%s.png' % str(uuid.uuid4()), 't', steps=1000)
-    #c.generate()
+    c.generate()
